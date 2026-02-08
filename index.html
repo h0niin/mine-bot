@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Bot Control</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --mc-bg: #c6c6c6;
+            --mc-dark: #8b8b8b;
+            --mc-darker: #373737;
+            --mc-light: #ffffff;
+            --mc-text: #3f3f3f;
+            --mc-shadow: #555555;
+            --mc-slot-bg: #8b8b8b;
+            --mc-slot-border-l: #373737;
+            --mc-slot-border-r: #ffffff;
+            --mc-green: #00AA00;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+            background: #000;
+            color: var(--mc-text);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            image-rendering: pixelated;
+        }
+
+        #pov-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            z-index: 9999;
+        }
+
+        #pov-header {
+            height: 40px;
+            background: #222;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            font-family: monospace;
+        }
+
+        #pov-header button {
+            background: #aa0000;
+            color: #fff;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        #pov-frame {
+            flex: 1;
+            border: none;
+        }
+
+
+        /* Background Video */
+        #bg-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -2;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            /* Darker overlay for readability */
+            z-index: -1;
+        }
+
+        /* Minecraft Panel Style */
+        .mc-panel {
+            background-color: var(--mc-bg);
+            border: 4px solid var(--mc-bg);
+            border-top-color: var(--mc-light);
+            border-left-color: var(--mc-light);
+            border-bottom-color: var(--mc-shadow);
+            border-right-color: var(--mc-shadow);
+            padding: 10px;
+            box-shadow: 0 0 0 2px #000;
+            /* Black outline */
+            image-rendering: pixelated;
+        }
+
+        /* Main Container */
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 15px;
+            width: 90vw;
+            max-width: 1000px;
+            height: 85vh;
+        }
+
+        /* Header (Stats + Task) */
+        .header-panel {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 15px;
+        }
+
+        .stats-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .label {
+            font-size: 20px;
+            text-transform: uppercase;
+            color: #222;
+        }
+
+        /* Icons */
+        .hearts-container,
+        .food-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            width: 200px;
+            /* Fixed width for wrapping */
+        }
+
+        .icon {
+            width: 18px;
+            height: 18px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        /* Heart Icons */
+        .heart.full {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 9"><path fill="%23000" d="M2 0h2v1H2V0zm2 1h2v1H4V1zM2 1H0v2h1v1h1v1h1v1h1v1h1v-1h1v-1h1v-1h1V1H6V0H4v1H2z"/><path fill="%23f00" d="M1 2h2v1h1v1h1v1h1v-1h1v-1h1V1H6v1H4v-1H2v1h-1z"/><path fill="%23c00" d="M1 3h1v1h1v1h2v-1h1v-1h1v2h-1v1H5v1H4V6H3V5H2V4H1z"/><path fill="%23fff" d="M2 2h1v1H2z"/></svg>');
+        }
+
+        .heart.half {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 9"><path fill="%23000" d="M2 0h2v1H2V0zm2 1h2v1H4V1zM2 1H0v2h1v1h1v1h1v1h1v1h1v-1h1v-1h1v-1h1V1H6V0H4v1H2z"/><path fill="%23f00" d="M1 2h2v1h1v1h1v1h.5v4H5v-1H4V6H3V5H2V4H1z"/><path fill="%23c00" d="M1 3h1v1h1v1h1.5v2H4V6H3V5H2V4H1z"/><path fill="%23fff" d="M2 2h1v1H2z"/><path fill="%23333" d="M5.5 3h2.5v1h-1v1h-1v1h-.5z" opacity="0.3"/></svg>');
+            /* Simplified half heart logic for standard grid */
+        }
+
+        /* Proper Half Heart Logic needs precise pixel art, using simplified version */
+        .heart.half {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 9"><path fill="%23000" d="M2 0h2v1H2V0zm2 1h2v1H4V1zM2 1H0v2h1v1h1v1h1v1h1v1h1v-1h1v-1h1v-1h1V1H6V0H4v1H2z"/><rect x="1" y="2" width="4" height="5" fill="%23f00"/><rect x="2" y="2" width="1" height="1" fill="%23fff"/></svg>');
+            /* Placeholder for half */
+        }
+
+        /* Better SVGs inline standard MC heart */
+        .heart.full {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 2H8V4H10V2H14V4H16V10H14V12H12V14H10V16H8V14H6V12H4V10H2V4H4V2Z" fill="black"/><path d="M4 4H8V6H10V4H14V10H12V12H10V14H8V12H6V10H4V4Z" fill="%23FF0000"/><path d="M5 5H7V7H5V5Z" fill="white"/></svg>');
+        }
+
+        .heart.half {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 2H8V4H10V2H14V4H16V10H14V12H12V14H10V16H8V14H6V12H4V10H2V4H4V2Z" fill="black"/><path d="M4 4H8V6H9V14H8V12H6V10H4V4Z" fill="%23FF0000"/><path d="M5 5H7V7H5V5Z" fill="white"/><path d="M10 5H14V9H10V5Z" fill="%23373737"/></svg>');
+        }
+
+        .heart.empty {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 2H8V4H10V2H14V4H16V10H14V12H12V14H10V16H8V14H6V12H4V10H2V4H4V2Z" fill="black"/><path d="M4 4H8V6H10V4H14V10H12V12H10V14H8V12H6V10H4V4Z" fill="%23373737"/></svg>');
+        }
+
+        /* Broken Heart Animation */
+        .heart.broken {
+            animation: shake 0.2s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateY(0);
+            }
+
+            25% {
+                transform: translateY(1px);
+            }
+
+            50% {
+                transform: translateY(0);
+            }
+
+            75% {
+                transform: translateY(-1px);
+            }
+        }
+
+        /* Food Icons */
+        .food.full {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 14H10V12H6V14ZM4 12H6V10H4V12ZM2 10H4V8H2V10ZM2 6H4V8H4V6H2ZM4 4H6V6H4V4ZM6 2H10V4H6V2ZM10 2H14V4H10V2ZM12 4H14V6H12V4ZM14 6H16V8H14V6ZM14 8H16V10H14V8ZM12 10H14V12H12V10ZM10 12H6V14H10ZM8 14H6V12H8V14Z" fill="black"/><path d="M6 12H10V10H12V8H14V6H12V4H10V6H6V12Z" fill="%23C9781C"/><path d="M10 2H14V4H10V2Z" fill="%23C9781C"/><path d="M4 6H6V10H10V12H6V10H4V6Z" fill="%238B4513"/><path d="M2 6H4V10H2V6Z" fill="%238B4513"/></svg>');
+        }
+
+        .food.half {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 14H10V12H6V14ZM4 12H6V10H4V12ZM2 10H4V8H2V10ZM2 6H4V8H4V6H2ZM4 4H6V6H4V4ZM6 2H10V4H6V2ZM10 2H14V4H10V2ZM12 4H14V6H12V4ZM14 6H16V8H14V6ZM14 8H16V10H14V8ZM12 10H14V12H12V10ZM10 12H6V14H10ZM8 14H6V12H8V14Z" fill="black"/><path d="M6 12H9V4H10V6H6V12Z" fill="%23C9781C"/><path d="M10 2H14V4H10V2Z" fill="%23373737"/><path d="M4 6H6V10H10V12H6V10H4V6Z" fill="%238B4513"/><path d="M2 6H4V10H2V6Z" fill="%238B4513"/></svg>');
+        }
+
+        .food.empty {
+            background-image: url('data:image/svg+xml;utf8,<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 14H10V12H6V14ZM4 12H6V10H4V12ZM2 10H4V8H2V10ZM2 6H4V8H4V6H2ZM4 4H6V6H4V4ZM6 2H10V4H6V2ZM10 2H14V4H10V2ZM12 4H14V6H12V4ZM14 6H16V8H14V6ZM14 8H16V10H14V8ZM12 10H14V12H12V10ZM10 12H6V14H10ZM8 14H6V12H8V14Z" fill="black"/><path d="M6 12H10V10H12V8H14V6H12V4H10V6H6V12Z" fill="%23373737"/></svg>');
+        }
+
+        /* XP Bar */
+        .xp-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .xp-level {
+            color: #80ff20;
+            text-shadow: 2px 2px 0 #000;
+            font-size: 24px;
+            margin-bottom: 2px;
+        }
+
+        .xp-bar-border {
+            width: 100%;
+            height: 10px;
+            background: #373737;
+            border: 2px solid #000;
+            position: relative;
+        }
+
+        .xp-fill {
+            height: 100%;
+            background: linear-gradient(#80ff20, #00aa00);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Task Info */
+        .task-info {
+            text-align: right;
+            border-left: 2px solid #555;
+            padding-left: 20px;
+        }
+
+        .task-label {
+            font-size: 18px;
+            color: #555;
+        }
+
+        .task-value {
+            font-size: 24px;
+            color: #222;
+        }
+
+        .coords {
+            font-family: monospace;
+            font-size: 18px;
+            margin-top: 5px;
+            color: #333;
+        }
+
+        /* Inventory Grid */
+        .inventory-panel {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .inv-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            
+            gap: 4px;
+            background: #8b8b8b;
+            padding: 10px;
+            border: 2px solid #373737;
+        }
+
+        .slot {
+            width: 50px;
+            height: 50px;
+            background: #8b8b8b;
+            border-top: 2px solid #373737;
+            border-left: 2px solid #373737;
+            border-bottom: 2px solid #ffffff;
+            border-right: 2px solid #ffffff;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .slot:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .slot-item {
+            font-size: 24px;
+            max-width: 32px;
+            max-height: 32px;
+            object-fit: contain;
+        }
+
+        .slot-count {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 16px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: #110010;
+            border: 2px solid #2a002a;
+            color: #fff;
+            padding: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+
+        .slot:hover .tooltip {
+            display: block;
+        }
+
+        /* Left Panel - Control/Chat */
+        .left-panel {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Terminal */
+        .terminal {
+            flex-grow: 1;
+            background: #000;
+            border: 2px solid #fff;
+            padding: 10px;
+            color: #fff;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            overflow: hidden;
+        }
+
+        .term-log {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            font-size: 14px;
+            padding-right: 5px;
+            /* Custom Scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #555 #000;
+        }
+
+        .term-log p {
+            margin: 2px 0;
+        }
+
+        .term-sys {
+            color: #aaa;
+        }
+
+        .term-user {
+            color: #0f0;
+        }
+
+        .term-input-box {
+            display: flex;
+            align-items: center;
+            border-top: 1px solid #555;
+            padding-top: 5px;
+        }
+
+        .term-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 16px;
+            outline: none;
+        }
+
+        /* Voice Button */
+        .mic-btn {
+            background: #c6c6c6;
+            border: 2px solid #000;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .mic-btn:active {
+            background: #aaa;
+        }
+
+        .mic-btn.listening {
+            background: #ffaaaa;
+            border-color: #ff0000;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .mic-icon {
+            width: 20px;
+            height: 20px;
+            fill: #333;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Video Background -->
+    <video id="bg-video" autoplay muted loop>
+        <source src="mc-bg.mp4" type="video/mp4">
+    </video>
+    <div class="overlay"></div>
+
+    <div class="container">
+
+        <!-- Header -->
+        <div class="mc-panel header-panel">
+            <div class="stats-left">
+                <!-- Health -->
+                <div class="stat-row">
+                    <div class="hearts-container" id="hearts"></div>
+                </div>
+                <!-- Hunger -->
+                <div class="stat-row">
+                    <div class="food-container" id="food"></div>
+                </div>
+                <!-- XP -->
+                <div class="xp-container">
+                    <div class="xp-level" id="xp-lvl">0</div>
+                    <div class="xp-bar-border">
+                        <div class="xp-fill" id="xp-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="task-info">
+                <div class="task-label">CURRENT TASK</div>
+                <div class="task-value" id="current-task">IDLE</div>
+                <div class="coords">
+                    X:<span id="pos-x">0</span> Y:<span id="pos-y">0</span> Z:<span id="pos-z">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left Panel: Terminal & Voice -->
+        <div class="left-panel">
+            <div class="terminal mc-panel">
+                <div class="term-log" id="term-log">
+                    <p class="term-sys">> System Ready.</p>
+                </div>
+                <div class="term-input-box">
+                    <span style="color:#0f0; margin-right:5px;">></span>
+                    <input type="text" class="term-input" id="cmd-input" placeholder="Enter command..."
+                        autocomplete="off">
+                </div>
+            </div>
+
+            <div class="mic-btn mc-panel" id="mic-btn">
+                <svg class="mic-icon" viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                    <path
+                        d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                </svg>
+                <span id="mic-text">VOICE CMD</span>
+            </div>
+        </div>
+
+        <div class="mc-panel mic-btn" id="pov-btn">
+            👁 VIEW BOT POV
+        </div>
+
+
+        <!-- Right Panel: Inventory -->
+        <div class="mc-panel inventory-panel">
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <div style="font-size: 18px; color: #3f3f3f; margin-bottom: 8px; text-align: center;">INVENTORY</div>
+                    <div class="inv-grid" id="main-inv">
+                        <!-- 27 main slots -->
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 18px; color: #3f3f3f; margin-bottom: 8px; text-align: center;">HOTBAR</div>
+                    <div class="inv-grid" id="hotbar-inv">
+                        <!-- 9 hotbar slots -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="pov-overlay">
+    <div id="pov-header">
+        <span>BOT POV</span>
+        <button id="pov-close">✕</button>
+    </div>
+    <iframe
+        id="pov-frame"
+        src="http://localhost:3001"
+        allow="pointer-lock fullscreen"
+    ></iframe>
+    </div>
+
+
+    <script>
+        // --- State ---
+        const state = {
+            health: 20,
+            food: 20,
+            xp: 0,
+            level: 0,
+            position: { x: 0, y: 0, z: 0 },
+            currentTask: "WAITING...",
+            mainInventory: [],
+            hotbar: []
+        };
+
+        // --- Elements ---
+        const els = {
+            hearts: document.getElementById('hearts'),
+            food: document.getElementById('food'),
+            xpLvl: document.getElementById('xp-lvl'),
+            xpFill: document.getElementById('xp-fill'),
+            task: document.getElementById('current-task'),
+            posX: document.getElementById('pos-x'),
+            posY: document.getElementById('pos-y'),
+            posZ: document.getElementById('pos-z'),
+            mainInv: document.getElementById('main-inv'),
+            hotbarInv: document.getElementById('hotbar-inv'),
+            log: document.getElementById('term-log'),
+            input: document.getElementById('cmd-input'),
+            mic: document.getElementById('mic-btn'),
+            micText: document.getElementById('mic-text')
+        };
+
+        // --- Logic ---
+
+        function addLog(msg, type = 'sys') {
+            const p = document.createElement('p');
+            p.className = type === 'user' ? 'term-user' : 'term-sys';
+            p.innerText = `${type === 'user' ? '>' : '#'} ${msg}`;
+            els.log.appendChild(p);
+            els.log.scrollTop = els.log.scrollHeight;
+        }
+
+        async function sendCommand(text) {
+            addLog(text, 'user');
+            try {
+                const res = await fetch('/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: text })
+                });
+                if (res.ok) addLog('Sent.', 'sys');
+                else addLog('Error sending command.', 'sys');
+            } catch (e) {
+                addLog('Network Error.', 'sys');
+            }
+        }
+
+        async function fetchState() {
+            try {
+                const res = await fetch('/bot-state');
+                const data = await res.json();
+
+                // Debug logging
+                if (data.debug && data.debug.totalItems > 0) {
+                    console.log('=== INVENTORY DATA ===');
+                    console.log('Total items:', data.debug.totalItems);
+                    console.log('All slots:', data.debug.allSlots);
+                    console.log('Hotbar items:', data.hotbar.filter(i => i !== null).length);
+                    console.log('Main inv items:', data.mainInventory.filter(i => i !== null).length);
+                }
+
+                // Update Local State
+                state.health = data.health || 0;
+                state.food = data.food || 0;
+                state.xp = data.xp || 0;
+                state.level = Math.floor(state.xp / 100); // Mock Level Calc
+                state.position = data.position || { x: 0, y: 0, z: 0 };
+                state.currentTask = data.currentTask || "IDLE";
+                state.mainInventory = data.mainInventory || [];
+                state.hotbar = data.hotbar || [];
+
+                render();
+            } catch (e) {
+                console.error('Fetch error:', e);
+            }
+        }
+
+        // --- Rendering ---
+
+        function render() {
+            // Health
+            els.hearts.innerHTML = '';
+            for (let i = 0; i < 10; i++) {
+                const d = document.createElement('div');
+                d.className = 'icon heart';
+                const hVal = (i + 1) * 2;
+                if (state.health >= hVal) d.classList.add('full');
+                else if (state.health >= hVal - 1) {
+                    d.classList.add('half');
+                    if (state.health < 4) d.classList.add('broken'); // Danger animation
+                }
+                else d.classList.add('empty');
+                els.hearts.appendChild(d);
+            }
+
+            // Food
+            els.food.innerHTML = '';
+            for (let i = 0; i < 10; i++) {
+                const d = document.createElement('div');
+                d.className = 'icon food';
+                const fVal = (i + 1) * 2;
+                if (state.food >= fVal) d.classList.add('full');
+                else if (state.food >= fVal - 1) d.classList.add('half');
+                else d.classList.add('empty');
+                els.food.appendChild(d);
+            }
+
+            // XP
+            els.xpLvl.innerText = state.level;
+            els.xpFill.style.width = `${state.xp % 100}%`;
+
+            // Info
+            els.task.innerText = state.currentTask.toUpperCase();
+            els.posX.innerText = Math.round(state.position.x);
+            els.posY.innerText = Math.round(state.position.y);
+            els.posZ.innerText = Math.round(state.position.z);
+
+            // Main Inventory (27 slots = 9x3)
+            els.mainInv.innerHTML = '';
+            for (let i = 0; i < 27; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                const item = state.mainInventory[i];
+                if (item) {
+                    const icon = document.createElement('img');
+                    icon.className = 'slot-item';
+                    icon.style.width = '32px';
+                    icon.style.height = '32px';
+                    icon.style.imageRendering = 'pixelated';
+                    
+                    // Convert display name to image name (remove spaces, lowercase)
+                    const imageName = item.name.toLowerCase().replace(/\s+/g, '_');
+                    
+                    // Try block image first
+                    icon.src = `https://minecraftallimages.jemsire.com/images/1.14.4/${imageName}.png`;
+                    
+                    // If block image fails, try item texture
+                    icon.onerror = () => {
+                        icon.onerror = () => {
+                            // Final fallback to stone
+                            icon.src = 'https://minecraftallimages.jemsire.com/images/1.14.4/stone.png';
+                        };
+                        icon.src = `https://assets.mcasset.cloud/1.21.1/assets/minecraft/textures/item/${imageName}.png`;
+                    };
+
+                    const count = document.createElement('div');
+                    count.className = 'slot-count';
+                    count.innerText = item.count > 1 ? item.count : '';
+
+                    const tip = document.createElement('div');
+                    tip.className = 'tooltip';
+                    tip.innerText = item.name;
+
+                    slot.append(icon, count, tip);
+                }
+                els.mainInv.appendChild(slot);
+            }
+
+            // Hotbar (9 slots = 9x1)
+            els.hotbarInv.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                const item = state.hotbar[i];
+                if (item) {
+                    const icon = document.createElement('img');
+                    icon.className = 'slot-item';
+                    icon.style.width = '32px';
+                    icon.style.height = '32px';
+                    icon.style.imageRendering = 'pixelated';
+                    
+                    // Convert display name to image name (remove spaces, lowercase)
+                    const imageName = item.name.toLowerCase().replace(/\s+/g, '_');
+                    
+                    // Try block image first
+                    icon.src = `https://minecraftallimages.jemsire.com/images/1.14.4/${imageName}.png`;
+                    
+                    // If block image fails, try item texture
+                    icon.onerror = () => {
+                        icon.onerror = () => {
+                            // Final fallback to stone
+                            icon.src = 'https://minecraftallimages.jemsire.com/images/1.14.4/stone.png';
+                        };
+                        icon.src = `https://assets.mcasset.cloud/1.21.1/assets/minecraft/textures/item/${imageName}.png`;
+                    };
+
+                    const count = document.createElement('div');
+                    count.className = 'slot-count';
+                    count.innerText = item.count > 1 ? item.count : '';
+
+                    const tip = document.createElement('div');
+                    tip.className = 'tooltip';
+                    tip.innerText = item.name;
+
+                    slot.append(icon, count, tip);
+                }
+                els.hotbarInv.appendChild(slot);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        els.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const val = els.input.value.trim();
+                if (val) {
+                    sendCommand(val);
+                    els.input.value = '';
+                }
+            }
+        });
+
+        // Voice Command
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                els.mic.classList.add('listening');
+                els.micText.innerText = "LISTENING...";
+            };
+
+            recognition.onend = () => {
+                els.mic.classList.remove('listening');
+                els.micText.innerText = "VOICE CMD";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                sendCommand(transcript);
+            };
+
+            els.mic.addEventListener('click', () => {
+                recognition.start();
+            });
+        } else {
+            els.mic.style.opacity = '0.5';
+            els.micText.innerText = "NO MIC";
+        }
+
+        // --- Init ---
+        setInterval(fetchState, 1000);
+
+        // Mock Initial
+        render();
+
+        const povBtn = document.getElementById('pov-btn');
+        const povOverlay = document.getElementById('pov-overlay');
+        const povClose = document.getElementById('pov-close');
+
+        povBtn.addEventListener('click', () => {
+            povOverlay.style.display = 'flex';
+        });
+
+        povClose.addEventListener('click', () => {
+            povOverlay.style.display = 'none';
+        });
+
+
+    </script>
+</body>
+
+</html>
